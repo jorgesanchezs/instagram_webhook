@@ -1,55 +1,91 @@
+import json
+import os
+import time
 import instaloader
 import requests
-import time
-import os
 from config.config import INSTAGRAM_USERNAME, DISCORD_WEBHOOK_URL, CHECK_INTERVAL, LAST_POST_FILE
 
-def get_instagram_photos(username):
+def get_instagram_data(username):
     loader = instaloader.Instaloader()
-    profile = instaloader.Profile.from_username(loader.context, username)
-    photos = []
-    for post in profile.get_posts():
-        photos.append({
-            'id': post.shortcode,
-            'caption': post.caption,
-            'media_url': post.url,
-            'permalink': f'https://www.instagram.com/p/{post.shortcode}/'
-        })
-        break
-    return photos
 
-def send_to_discord(webhook_url, content):
-    data = {'content': content}
-    response = requests.post(webhook_url, json=data)
+    data = {
+        "photos": []
+    }
+
+    try:
+        profile = instaloader.Profile.from_username(loader.context, username)
+        print(f"Profile {username} found.")
+
+        # Debug: Print profile info
+        print(f"Profile Info: Followers: {profile.followers}, Posts: {profile.mediacount}, is_private: {profile.is_private}")
+
+        # Extract posts
+        print("Fetching posts...")
+        for post in profile.get_posts():
+            print(f"Found post: {post.url}")
+            data["photos"].append({
+                "url": post.url,
+                "caption": post.caption,
+                "timestamp": post.date_utc.isoformat()
+            })
+            # Delay to mimic human behavior
+            time.sleep(2)  # Adjust delay as needed
+
+        return data
+
+    except instaloader.exceptions.ProfileNotExistsException:
+        print(f'Profile {username} does not exist.')
+        return None
+    except Exception as e:
+        print(f'An error occurred: {e}')
+        return None
+
+def save_data_to_json(data, filename):
+    with open(filename, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=4)
+    print(f"Data saved to {filename}.")
+
+def load_last_post():
+    if os.path.exists(LAST_POST_FILE):
+        with open(LAST_POST_FILE, 'r') as f:
+            return f.read().strip()
+    return None
+
+def save_last_post(post_id):
+    with open(LAST_POST_FILE, 'w') as f:
+        f.write(post_id)
+    print(f"Last post ID saved to {LAST_POST_FILE}.")
+
+def post_to_discord(data):
+    headers = {
+        "Content-Type": "application/json"
+    }
+    response = requests.post(DISCORD_WEBHOOK_URL, headers=headers, data=json.dumps(data))
     if response.status_code == 204:
-        print('Mensaje enviado a Discord exitosamente.')
+        print("Posted to Discord successfully.")
     else:
-        print(f'Error al enviar el mensaje a Discord: {response.status_code}')
+        print(f"Failed to post to Discord: {response.status_code}")
 
 def main():
-    last_post_id = None
-    if os.path.exists(LAST_POST_FILE):
-        with open(LAST_POST_FILE, 'r') as file:
-            last_post_id = file.read().strip()
-
     while True:
-        photos = get_instagram_photos(INSTAGRAM_USERNAME)
+        print("Checking for new posts...")
+        data = get_instagram_data(INSTAGRAM_USERNAME)
 
-        if not photos:
-            print('No se encontraron fotos.')
-            time.sleep(CHECK_INTERVAL)
-            continue
+        if data:
+            save_data_to_json(data, "instagram_data.json")
 
-        for photo in photos:
-            if last_post_id is None or photo['id'] != last_post_id:
-                message = f"{photo['caption']}\n{photo['media_url']}\n{photo['permalink']}"
-                send_to_discord(DISCORD_WEBHOOK_URL, message)
-                last_post_id = photo['id']
+            # Post latest photo to Discord
+            if data["photos"]:
+                last_photo = data["photos"][0]
+                last_post_id = load_last_post()
 
-                with open(LAST_POST_FILE, 'w') as file:
-                    file.write(last_post_id)
+                if last_photo["url"] != last_post_id:
+                    post_to_discord({
+                        "content": f"New post from {INSTAGRAM_USERNAME}: {last_photo['url']}\nCaption: {last_photo['caption']}"
+                    })
+                    save_last_post(last_photo["url"])
 
         time.sleep(CHECK_INTERVAL)
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
