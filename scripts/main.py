@@ -6,7 +6,7 @@ import instaloader
 import requests
 from config.config import INSTAGRAM_USERNAME, DISCORD_WEBHOOK_URL, CHECK_INTERVAL, LAST_POST_FILE
 
-def get_instagram_data(username):
+def get_instagram_data(username, max_posts=30):
     loader = instaloader.Instaloader()
 
     data = {
