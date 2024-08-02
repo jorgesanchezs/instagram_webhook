@@ -80,9 +80,7 @@ def post_to_discord(data):
                 "image": {
                     "url": media_url
                 },
-                "color": {
-
-                },
+                "color": int('eb23da', 16),
                 "footer": {
                     "text": f"{data['caption']}",
                     "icon_url": "https://upload.wikimedia.org/wikipedia/commons/a/a5/Instagram_icon.png"
@@ -118,16 +116,6 @@ def main():
 
     if data:
         save_data_to_json(data, "instagram_data.json")
-
-        # Post latest photo to Discord for initial test
-        if data["photos"]:
-            last_photo = data["photos"][0]
-            last_post_id = load_last_post()
-
-            if last_photo["url"] != last_post_id:
-                post_to_discord(last_photo)
-                save_last_post(last_photo["url"])
-                return  # Stop after posting the first photo for testing
 
     # After initial test, continue posting randomly
     while True:
