@@ -26,7 +26,7 @@ def get_instagram_data(username, max_posts=30):
             print(f"Found post: {post.url}")
             post_data = {
                 "url": post.url,
-                "caption": post.caption,
+                "caption": post.caption or "",
                 "timestamp": post.date_utc.isoformat(),
                 "media_urls": [post.url]  # Include main post URL by default
             }
